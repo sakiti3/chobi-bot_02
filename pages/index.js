@@ -113,7 +113,6 @@ export default function ChobiBot() {
   const [msgs, setMsgs] = useState([initMsg]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [reactions, setReactions] = useState({});
   const [weatherStr, setWeatherStr] = useState("");
   const endRef = useRef(null);
 
@@ -143,7 +142,7 @@ export default function ChobiBot() {
     // 20%の確率でランダム名言
     if (Math.random() < 0.20) {
       var q = QUOTES[Math.floor(Math.random() * QUOTES.length)];
-      var delay = 400 + Math.min(q.length * 60, 1200) + Math.random() * 400;
+      var delay = 150 + Math.min(q.length * 20, 400) + Math.random() * 150;
       await new Promise(function (r) { setTimeout(r, delay); });
       setMsgs(next.concat([{ role: "assistant", content: pickFace() + q }]));
       setLoading(false);
@@ -240,30 +239,6 @@ export default function ChobiBot() {
                   </div>
                   {isRead && (
                     <div style={{ fontSize: "10px", color: "#43b581", marginTop: "3px" }}>読んだ ✓</div>
-                  )}
-                  {bot && (
-                    <div style={{ display: "flex", gap: "4px", marginTop: "5px" }}>
-                      {["❤️", "🫧"].map(function (emoji) {
-                        var count = (reactions[i] || {})[emoji] || 0;
-                        return (
-                          <button key={emoji} onClick={function () {
-                            setReactions(function (prev) {
-                              var r = Object.assign({}, prev);
-                              r[i] = Object.assign({}, r[i] || {});
-                              r[i][emoji] = (r[i][emoji] || 0) + 1;
-                              return r;
-                            });
-                          }} style={{
-                            background: count > 0 ? "rgba(88,101,242,0.25)" : "rgba(255,255,255,0.05)",
-                            border: "1px solid " + (count > 0 ? "#5865f2" : "#2d2d44"),
-                            borderRadius: "12px", padding: "2px 8px", cursor: "pointer",
-                            fontSize: "13px", color: "#e0e0e0", display: "flex", alignItems: "center", gap: "3px",
-                          }}>
-                            {emoji}{count > 0 ? "\u00a0" + count : ""}
-                          </button>
-                        );
-                      })}
-                    </div>
                   )}
                 </div>
               </div>
