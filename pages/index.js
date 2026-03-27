@@ -70,13 +70,16 @@ var QUOTES = [
 ];
 
 function sanitize(text) {
-  return text.replace(/\u25d4\u2038\u25d4/g, "chobi");
+  // 顔文字全体を(chobi)タグに置換（AIの履歴に顔文字の形を見せない）
+  return text
+    .replace(/[⌒°ฅʚ⸝・]*\s*[（(][^)）\n]{0,20}(?:\u25d4\u2038\u25d4|\u22df\u2038\u22de)[^)）\n]{0,20}[)）](?:[°⌒]*|ɞ⸒⸒|🪈ピー)?/g, "(chobi)")
+    .replace(/[・]?\([^)]{0,15}chobi[^)]{0,15}\)/g, "(chobi)");
 }
 
 function restoreFace(text) {
   // ・(chobi) や (chobi) をランダム顔文字に置換（1つだけ）、余分は削除
   var replaced = false;
-  var result = text.replace(/[・]?\(chobi\)/g, function() {
+  var result = text.replace(/[・]?\([^)]{0,15}chobi[^)]{0,15}\)/g, function() {
     if (!replaced) {
       replaced = true;
       return pickFace();
@@ -86,16 +89,48 @@ function restoreFace(text) {
   return result;
 }
 
+function getTimeStr() {
+  var h = new Date().getHours();
+  if (h >= 5 && h < 10) return "朝（" + h + "時ごろ）";
+  if (h >= 10 && h < 17) return "昼間（" + h + "時ごろ）";
+  if (h >= 17 && h < 21) return "夕方（" + h + "時ごろ）";
+  return "夜中（" + h + "時ごろ）";
+}
+
+function weatherLabel(code) {
+  if (code === 0) return "晴れ";
+  if (code <= 3) return "くもり";
+  if (code <= 48) return "霧";
+  if (code <= 55) return "小雨";
+  if (code <= 65) return "雨";
+  if (code <= 75) return "雪";
+  if (code <= 82) return "にわか雨";
+  return "雷雨";
+}
+
 export default function ChobiBot() {
   var initMsg = { role: "assistant", content: FACE + "\u3082\u3057\u30fc" };
   const [msgs, setMsgs] = useState([initMsg]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [reactions, setReactions] = useState({});
+  const [weatherStr, setWeatherStr] = useState("");
   const endRef = useRef(null);
 
   useEffect(function () {
     if (endRef.current) endRef.current.scrollIntoView({ behavior: "smooth" });
   }, [msgs]);
+
+  useEffect(function () {
+    fetch("https://api.open-meteo.com/v1/forecast?latitude=35.6762&longitude=139.6503&current=temperature_2m,weather_code")
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        var code = d.current.weather_code;
+        var temp = Math.round(d.current.temperature_2m);
+        setWeatherStr("東京の天気は" + weatherLabel(code) + "・気温" + temp + "℃");
+      })
+      .catch(function () {});
+  }, []);
 
   var send = useCallback(async function () {
     if (!input.trim() || loading) return;
@@ -105,17 +140,18 @@ export default function ChobiBot() {
     setMsgs(next);
     setLoading(true);
 
-    // 40%の確率でランダム名言
-    if (Math.random() < 0.40) {
+    // 20%の確率でランダム名言
+    if (Math.random() < 0.20) {
       var q = QUOTES[Math.floor(Math.random() * QUOTES.length)];
-      await new Promise(function (r) { setTimeout(r, 400 + Math.random() * 600); });
+      var delay = 400 + Math.min(q.length * 60, 1200) + Math.random() * 400;
+      await new Promise(function (r) { setTimeout(r, delay); });
       setMsgs(next.concat([{ role: "assistant", content: pickFace() + q }]));
       setLoading(false);
       return;
     }
 
     try {
-      var apiMsgs = next.slice(-6).map(function (m) {
+      var apiMsgs = next.slice(-10).map(function (m) {
         return {
           role: m.role === "assistant" ? "assistant" : "user",
           content: sanitize(m.content),
@@ -125,12 +161,11 @@ export default function ChobiBot() {
       var controller = new AbortController();
       var timeoutId = setTimeout(function () { controller.abort(); }, 15000);
 
-      // ★ 変更点：自分のサーバーの /api/chat に投げる（APIキー不要）
       var res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         signal: controller.signal,
-        body: JSON.stringify({ messages: apiMsgs }),
+        body: JSON.stringify({ messages: apiMsgs, timeStr: getTimeStr(), weatherStr: weatherStr }),
       });
 
       clearTimeout(timeoutId);
@@ -189,17 +224,47 @@ export default function ChobiBot() {
         <div style={{ flex: 1, overflowY: "auto", paddingTop: "16px", paddingBottom: "16px", paddingLeft: "max(16px, env(safe-area-inset-left))", paddingRight: "max(16px, env(safe-area-inset-right))", display: "flex", flexDirection: "column", gap: "12px" }}>
           {msgs.map(function (m, i) {
             var bot = m.role === "assistant";
+            var isRead = !bot && msgs[i + 1] && msgs[i + 1].role === "assistant";
             return (
               <div key={i} style={{ display: "flex", flexDirection: bot ? "row" : "row-reverse", alignItems: "flex-start", gap: "8px" }}>
                 {bot && <img src={ICON} alt="" style={{ width: "32px", height: "32px", borderRadius: "50%", flexShrink: 0, marginTop: "4px", objectFit: "cover" }} />}
-                <div style={{
-                  maxWidth: "78%", padding: "10px 14px",
-                  borderRadius: bot ? "4px 18px 18px 18px" : "18px 4px 18px 18px",
-                  background: bot ? "#2d2d44" : "#5865f2",
-                  color: "#fff", fontSize: "14px", lineHeight: "1.7",
-                  whiteSpace: "pre-wrap", wordBreak: "break-word",
-                }}>
-                  {m.content}
+                <div style={{ display: "flex", flexDirection: "column", maxWidth: "78%", alignItems: bot ? "flex-start" : "flex-end" }}>
+                  <div style={{
+                    padding: "10px 14px",
+                    borderRadius: bot ? "4px 18px 18px 18px" : "18px 4px 18px 18px",
+                    background: bot ? "#2d2d44" : "#5865f2",
+                    color: "#fff", fontSize: "14px", lineHeight: "1.7",
+                    whiteSpace: "pre-wrap", wordBreak: "break-word",
+                  }}>
+                    {m.content}
+                  </div>
+                  {isRead && (
+                    <div style={{ fontSize: "10px", color: "#43b581", marginTop: "3px" }}>読んだ ✓</div>
+                  )}
+                  {bot && (
+                    <div style={{ display: "flex", gap: "4px", marginTop: "5px" }}>
+                      {["❤️", "🫧"].map(function (emoji) {
+                        var count = (reactions[i] || {})[emoji] || 0;
+                        return (
+                          <button key={emoji} onClick={function () {
+                            setReactions(function (prev) {
+                              var r = Object.assign({}, prev);
+                              r[i] = Object.assign({}, r[i] || {});
+                              r[i][emoji] = (r[i][emoji] || 0) + 1;
+                              return r;
+                            });
+                          }} style={{
+                            background: count > 0 ? "rgba(88,101,242,0.25)" : "rgba(255,255,255,0.05)",
+                            border: "1px solid " + (count > 0 ? "#5865f2" : "#2d2d44"),
+                            borderRadius: "12px", padding: "2px 8px", cursor: "pointer",
+                            fontSize: "13px", color: "#e0e0e0", display: "flex", alignItems: "center", gap: "3px",
+                          }}>
+                            {emoji}{count > 0 ? "\u00a0" + count : ""}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               </div>
             );
