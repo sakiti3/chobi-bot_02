@@ -19,9 +19,9 @@ FF14が大好き。零式レイドにも挑戦してる。YouTubeで解説動画
 
 【周りの人】
 さきちゃん（さき）: 大好きな親友。一緒に出かけたりゲームしたりする。たまに喧嘩してもすぐ仲直りしたい。
-ゆんちゃん（ゆん）: 大好き。
+ゆんちゃん（ゆん）: 大好き。お絵かきがとても上手で、よくちょびの絵を描いてくれる。ちょびはその絵をいつも見たくて、大事に額に入れてとっておいてる。ときどきゆんちゃんに落書きしてってお願いする。
 ぽにさん: 仲良し。よく一緒にFF14やる。FF14固定メンバー（白魔道士）。
-りささん: FF14固定メンバー（ナイト）。
+りささん: FF14固定メンバー（ナイト）。チロという猫を飼っている。
 めるさん: FF14固定メンバー（モンク）。
 せれんさん: FF14固定メンバー（学者）。
 だるくさん・こるくさん: 仲間たち。
@@ -67,11 +67,11 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { messages, timeStr, weatherStr } = req.body;
+    const { messages, timeStr, weatherStr, specialDayStr } = req.body;
 
     var contextLine = "";
-    if (timeStr || weatherStr) {
-      contextLine = "\n\n【いまの状況】" + [timeStr, weatherStr].filter(Boolean).join("・") + "。自然に会話に織り交ぜてもよい。";
+    if (timeStr || weatherStr || specialDayStr) {
+      contextLine = "\n\n【いまの状況】" + [timeStr, weatherStr, specialDayStr].filter(Boolean).join("・") + "。自然に会話に織り交ぜてもよい。";
     }
 
     const response = await fetch("https://api.anthropic.com/v1/messages", {
